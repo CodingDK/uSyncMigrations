@@ -123,36 +123,51 @@ internal abstract class SharedContentBaseHandler<TEntity> : SharedHandlerBase<TE
 
         try
         {
-
             // convert the property .
             _logger.LogDebug("ConvertPropertyValue: {itemType} {contentType} {editorAlias}", itemType, contentType, editorAlias);
 
-            var migrationProperty = new SyncMigrationContentProperty(
-                contentType, property.Name.LocalName, editorAlias, property.Value);
+            var propertyValues = new List<XElement>();
 
-            var propertyMigrator = context.Migrators.TryGetMigrator(
-                $"{migrationProperty.ContentTypeAlias}_{migrationProperty.PropertyAlias}", migrationProperty.EditorAlias);
-
-            if (propertyMigrator != null)
+            var currentNode = property.FirstNode as XElement;
+            while (currentNode != null)
             {
-                switch (propertyMigrator)
+                var migrationProperty = new SyncMigrationContentProperty(
+                    contentType, property.Name.LocalName, editorAlias, currentNode.Value);
+
+                var propertyMigrator = context.Migrators.TryGetMigrator(
+                    $"{migrationProperty.ContentTypeAlias}_{migrationProperty.PropertyAlias}", migrationProperty.EditorAlias);
+
+                if (propertyMigrator != null)
                 {
-                    case ISyncVariationPropertyMigrator variationPropertyMigrator:
-                        _logger.LogDebug("Variation Migrator {name}", variationPropertyMigrator.GetType().Name);
-                        var variationResult = GetVariedValueNode(variationPropertyMigrator, contentType, property.Name.LocalName, migrationProperty, context);
-                        if (variationResult != null) return variationResult.AsEnumerableOfOne();
-                        break;
-                    case ISyncPropertySplittingMigrator splittingMigrator:
-                        _logger.LogDebug("Splitting migrator {name}", splittingMigrator.GetType().Name);
-                        return GetSplitPropertyValueNodes(splittingMigrator, contentType, property.Name.LocalName, migrationProperty, context);
+                    switch (propertyMigrator)
+                    {
+                        case ISyncVariationPropertyMigrator variationPropertyMigrator:
+                            _logger.LogDebug("Variation Migrator {name}", variationPropertyMigrator.GetType().Name);
+                            var variationResult = GetVariedValueNode(variationPropertyMigrator, contentType, property.Name.LocalName, migrationProperty, context);
+                            if (variationResult != null) return variationResult.AsEnumerableOfOne();
+                            break;
+                        case ISyncPropertySplittingMigrator splittingMigrator:
+                            _logger.LogDebug("Splitting migrator {name}", splittingMigrator.GetType().Name);
+                            return GetSplitPropertyValueNodes(splittingMigrator, contentType, property.Name.LocalName, migrationProperty, context);
+                    }
                 }
+
+                // default this value doesn't need to be split
+                // and we can 'just' migrate it on its own.
+                var migratedValue = MigrateContentValue(migrationProperty, context);
+
+                var culture = currentNode?.AttributeValue<string>("Culture");
+
+                var element = new XElement("Value", new XCData(migratedValue));
+                if (culture != null)
+                    element.Add(new XAttribute("Culture", culture));
+
+                propertyValues.Add(element);
+
+                currentNode = currentNode?.NextNode as XElement;
             }
 
-            // default this value doesn't need to be split
-            // and we can 'just' migrate it on its own.
-            var migratedValue = MigrateContentValue(migrationProperty, context);
-            return new XElement(property.Name.LocalName,
-                        new XElement("Value", new XCData(migratedValue))).AsEnumerableOfOne();
+            return new XElement(property.Name.LocalName, propertyValues).AsEnumerableOfOne();
         }
         catch (Exception ex)
         {
