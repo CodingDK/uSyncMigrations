@@ -94,11 +94,9 @@ internal abstract class SharedDataTypeHandler : SharedHandlerBase<DataType>
         else if (replacementInfo == null)
         {
             var migrator = context.Migrators.TryGetMigrator(editorAlias);
-            if (migrator != null)
-            {
-                var newEditorAlias = migrator.GetEditorAlias(new SyncMigrationDataTypeProperty(alias, editorAlias, databaseType, (string?)null), context);
-                context.DataTypes.AddDefinition(dtd, new Models.DataTypeInfo(newEditorAlias, editorAlias, dataTypeName));
-            }
+            var newEditorAlias = migrator?.GetEditorAlias(new SyncMigrationDataTypeProperty(alias, editorAlias, databaseType, (string?)null), context) ?? editorAlias;
+
+            context.DataTypes.AddDefinition(dtd, new Models.DataTypeInfo(newEditorAlias, editorAlias, dataTypeName));
         }
     }
 
