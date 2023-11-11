@@ -76,9 +76,8 @@ internal abstract class SharedContentTypeBaseHandler<TEntity> : SharedHandlerBas
                 context.ContentTypes.AddProperty(contentTypeAlias, alias,
                     editorAlias, context.DataTypes.GetByDefinition(definition)?.EditorAlias, definition);
 
-                var dataTypeAlias = context.DataTypes.GetAlias(definition);
-
-                context.ContentTypes.AddDataTypeAlias(contentTypeAlias, alias, dataTypeAlias);
+                context.ContentTypes.AddDataTypeAlias(contentTypeAlias, alias,
+                    context.DataTypes.GetAlias(definition));
             }
 
 
@@ -224,9 +223,8 @@ internal abstract class SharedContentTypeBaseHandler<TEntity> : SharedHandlerBas
     protected virtual void UpdatePropertyEditor(string alias, XElement newProperty, SyncMigrationContext context)
     {
         var propertyAlias = newProperty.Element("Alias").ValueOrDefault(string.Empty);
-        var typeName = newProperty.Element("Type").ValueOrDefault(string.Empty);
 
-        var updatedType = context.ContentTypes.GetEditorAliasByTypeAndProperty(alias, propertyAlias)?.UpdatedEditorAlias ?? typeName;
+        var updatedType = context.ContentTypes.GetEditorAliasByTypeAndProperty(alias, propertyAlias)?.UpdatedEditorAlias ?? propertyAlias;
         newProperty.CreateOrSetElement("Type", updatedType);
 
         var definitionElement = newProperty.Element("Definition");
