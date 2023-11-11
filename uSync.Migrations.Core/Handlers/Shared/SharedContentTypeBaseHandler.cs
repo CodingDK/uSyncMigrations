@@ -224,23 +224,26 @@ internal abstract class SharedContentTypeBaseHandler<TEntity> : SharedHandlerBas
     {
         var propertyAlias = newProperty.Element("Alias").ValueOrDefault(string.Empty);
 
-        var updatedType = context.ContentTypes.GetEditorAliasByTypeAndProperty(alias, propertyAlias)?.UpdatedEditorAlias ?? propertyAlias;
+        var updatedType = context.ContentTypes.GetEditorAliasByTypeAndProperty(alias, propertyAlias)?.UpdatedEditorAlias ?? "MISSING_VALUE";
         newProperty.CreateOrSetElement("Type", updatedType);
 
         var definitionElement = newProperty.Element("Definition");
         if (definitionElement == null) return;
 
         var definition = definitionElement.ValueOrDefault(Guid.Empty);
-        var variationValue = "Nothing";
+        string? variationValue = null;
 
         if (definition != Guid.Empty)
         {
-            definitionElement.Value = context.DataTypes.GetReplacement(definition).ToString();
+            definitionElement.Value = context.DataTypes.GetReplacement(definition).ToString();    
             variationValue = context.DataTypes.GetVariation(definition);
         }
 
         if (ItemType == nameof(ContentType))
         {
+            if (variationValue == null)
+                variationValue = newProperty.Element("Variations").ValueOrDefault("Nothing");
+            
             newProperty.CreateOrSetElement("Variations", variationValue);
         }
 
