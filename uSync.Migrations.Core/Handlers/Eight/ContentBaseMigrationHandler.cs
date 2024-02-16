@@ -11,6 +11,7 @@ using uSync.Core;
 using uSync.Migrations.Core.Context;
 using uSync.Migrations.Core.Extensions;
 using uSync.Migrations.Core.Handlers.Shared;
+using uSync.Migrations.Core.Migrators.Models;
 using uSync.Migrations.Core.Services;
 
 namespace uSync.Migrations.Core.Handlers.Eight;
@@ -41,6 +42,9 @@ internal class ContentBaseMigrationHandler<TEntity> : SharedContentBaseHandler<T
     protected override IEnumerable<XElement>? GetProperties(XElement source)
         => source.Element("Properties")?.Elements() ?? Enumerable.Empty<XElement>();
 
+    protected override string? GetEntityType()
+        => null;
+
     protected override XElement GetBaseXml(XElement source, Guid parent, string contentType, int level, SyncMigrationContext context)
     {
         var target = new XElement(source.Name.LocalName,
@@ -58,4 +62,49 @@ internal class ContentBaseMigrationHandler<TEntity> : SharedContentBaseHandler<T
         return target;
     }
 
+    protected override IEnumerable<XElement> ConvertPropertyValue(string itemType, string contentType, XElement property, SyncMigrationContext context)
+    {
+        if (property.Elements("Value").Count() > 1)
+        {
+            // variant migration 
+            // variant migration, doesn't support splitting, or variant migrators ! 
+            var editorAlias = context.ContentTypes.GetEditorAliasByTypeAndProperty(contentType, property.Name.LocalName)
+                ?.OriginalEditorAlias ?? string.Empty;
+
+            try
+            {
+                var migrationProperty = new SyncMigrationContentProperty(
+                    contentType, property.Name.LocalName, editorAlias, property.Value);
+
+                var migratedNodes = new XElement(property.Name.LocalName);
+
+                foreach (var node in property.Elements("Value"))
+                {
+
+                    migrationProperty.Value = node.Value;
+                    var migratedValue = MigrateContentValue(migrationProperty, context);
+
+                    var migratedNode = new XElement(node.Name.LocalName, new XCData(migratedValue));
+                    foreach (var attribute in node.Attributes())
+                    {
+                        migratedNode.Add(new XAttribute(attribute.Name.LocalName, attribute.Value));
+                    }
+
+                    migratedNodes.Add(migratedNode);
+
+                }
+
+                return migratedNodes.AsEnumerableOfOne();
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, "Error trying to migrate variant node values {editor}", editorAlias);
+                throw;
+            }
+        }
+        else
+        {
+            return base.ConvertPropertyValue(itemType, contentType, property, context);
+        }
+    }
 }

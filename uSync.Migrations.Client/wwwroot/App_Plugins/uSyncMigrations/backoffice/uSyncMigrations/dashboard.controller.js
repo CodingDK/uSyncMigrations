@@ -2,13 +2,14 @@
     'use strict';
 
     function dashboardController($q,
-        uSyncMigrationService, uSync8DashboardService,
+        uSyncMigrationService, uSyncHub,
         editorService, notificationsService, navigationService) {
 
         var vm = this;
 
         vm.pickSource = pickSource;
         vm.uploadZip = uploadZip;
+        vm.download = download;
         vm.edit = edit;
 
         vm.canBeImported = canBeImported;
@@ -26,6 +27,7 @@
 
         vm.$onInit = function () {
             vm.loading = false;
+            InitHub();
             navigationService.syncTree({ tree: "uSyncMigrations", path: "-1" });
         }
 
@@ -87,12 +89,28 @@
             });
         }
 
+        function download() {
+            editorService.open({
+                title: 'download',
+                size: 'small',
+                view: Umbraco.Sys.ServerVariables.umbracoSettings.appPluginsPath + '/uSyncMigrations/dialogs/download.html',
+                hub: vm.hub,
+                close: function () {
+                    editorService.close();
+                }
+            });
+        }
+
+
         function validate(status) {
+            vm.validating = true;
             uSyncMigrationService.validate(status)
                 .then(function (result) {
+                    vm.validating = false; 
                     vm.validation = result.data;
                     vm.sourceValid = vm.validation.success;
                 }, function (error) {
+                    vm.validating = false; 
                     vm.error = error.data.ExceptionMessage;
                 });
         }
@@ -112,12 +130,15 @@
             vm.step = 'migrating';
             vm.working = true;
 
+            vm.migrationStatus.clientId = getClientId();
+
             uSyncMigrationService.migrate(vm.migrationStatus)
                 .then(function (result) {
                     vm.state = 'success';
                     vm.step = 'migrated';
                     vm.migrationResults = result.data;
                     vm.migrationStatus.migrated = true;
+                    vm.migrationStatus.success = result.success;
                     vm.working = false;
                 }, function (error) {
                     vm.state = 'error';
@@ -148,6 +169,46 @@
             else {
                 vm.step = 'start';
             }
+        }
+
+        ////// SignalR things 
+        function InitHub() {
+            uSyncHub.initHub(function (hub) {
+
+                vm.hub = hub;
+
+                vm.hub.on('add', function (data) {
+                    vm.status = data;
+                    console.log('add', data);
+                });
+
+                vm.hub.on('update', function (update) {
+                    console.log('update', update);
+
+                    var percentage = 0;
+                    if (vm.update !== undefined && vm.update.percentage !== undefined) {
+                        percentage = vm.update.percentage;
+                    }
+
+                    vm.update = update;
+
+                    if (update.total > 0) {
+                        vm.update.percentage = Math.round((update.count / update.total) * 100);
+                    }
+                    else {
+                        vm.update.percentage = percentage;
+                    }
+                });
+
+                vm.hub.start();
+            });
+        }
+
+        function getClientId() {
+            if ($.connection !== undefined) {
+                return $.connection.connectionId;
+            }
+            return "";
         }
     }
 

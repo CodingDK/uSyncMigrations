@@ -1,4 +1,6 @@
-﻿namespace uSync.Migrations.Core.Context;
+﻿using uSync.BackOffice;
+
+namespace uSync.Migrations.Core.Context;
 
 /// <summary>
 ///  A uSync migration context, lets us keep a whole list of things in memory while we do the migration.
@@ -50,6 +52,7 @@ public class SyncMigrationContext : IDisposable
 
     private HashSet<string> _blockedTypes = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<int, Guid> _idKeyMap { get; set; } = new();
+    private Dictionary<Guid, string> _keyToUdiEntityTypeMap { get; set; } = new();
 
     /// <summary>
     ///  is this item blocked based on alias and type. 
@@ -83,7 +86,35 @@ public class SyncMigrationContext : IDisposable
     public int GetId(Guid key)
             => _idKeyMap?.FirstOrDefault(x => x.Value == key).Key ?? 0;
 
+    /// <summary>
+    /// Adds the reference from a guid key to find the entity type
+    /// </summary>
+    public void AddEntityMap(Guid key, string entityType)
+        => _keyToUdiEntityTypeMap.TryAdd(key, entityType);
+
+    /// <summary>
+    /// Get the entity type for the guid
+    /// </summary>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    public string GetEntityType(Guid key)
+    {
+        return _keyToUdiEntityTypeMap.TryGetValue(key, out var entityType) == true ? entityType : UmbConstants.UdiEntityType.Document;
+    }
+
     public void Dispose()
     { }
+
+
+    /// <summary>
+    ///  the callback functions for sending information to the client.
+    /// </summary>
+    public uSyncCallbacks? Callbacks { get; set; }
+
+    public void SendUpdate(string message, int count, int total)
+    {
+        Callbacks?.Update(message, count, total);   
+    }
+
 
 }

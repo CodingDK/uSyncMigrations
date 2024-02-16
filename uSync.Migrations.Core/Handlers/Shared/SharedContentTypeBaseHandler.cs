@@ -231,19 +231,17 @@ internal abstract class SharedContentTypeBaseHandler<TEntity> : SharedHandlerBas
         if (definitionElement == null) return;
 
         var definition = definitionElement.ValueOrDefault(Guid.Empty);
-        string? variationValue = null;
+
+        var variationValue = newProperty.Element("Variations").ValueOrDefault("Nothing");
 
         if (definition != Guid.Empty)
         {
-            definitionElement.Value = context.DataTypes.GetReplacement(definition).ToString();    
-            variationValue = context.DataTypes.GetVariation(definition);
+            definitionElement.Value = context.DataTypes.GetReplacement(definition).ToString();
+            variationValue = context.DataTypes.GetVariation(definition, variationValue);
         }
 
         if (ItemType == nameof(ContentType))
         {
-            if (variationValue == null)
-                variationValue = newProperty.Element("Variations").ValueOrDefault("Nothing");
-            
             newProperty.CreateOrSetElement("Variations", variationValue);
         }
 
